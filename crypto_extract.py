@@ -410,5 +410,7 @@ if __name__ == '__main__':
     # symbols_df.to_csv("C:\\Users\\jaydi\\Documents\\testdata\\symbols_and_exchange.csv", index=False)
     write_df(flds, symbols_df, "dbo.crypto_curr")
 
+    print("ALL DONE")
+
 
 # See PyCharm help at https://www.jetbrains.com/help/pycharm/
