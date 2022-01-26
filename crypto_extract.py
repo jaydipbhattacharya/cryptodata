@@ -59,6 +59,8 @@ class MarketDataIntfc(ABC):
 
 
 class CoinMarketCapAPI(MarketDataIntfc):
+    def __init__( self, apikey):
+        self.apikey = apikey
 
     def get_request_data(self, url) -> list:
         parameters = {
@@ -67,7 +69,7 @@ class CoinMarketCapAPI(MarketDataIntfc):
         }
         headers = {
             'Accepts': 'application/json',
-            'X-CMC_PRO_API_KEY': 'af3d24ae-b0b8-46b6-a557-e2f7a159b412',
+            'X-CMC_PRO_API_KEY': self.apikey,
         }
 
         try:
@@ -152,10 +154,13 @@ class CoinMarketCapAPI(MarketDataIntfc):
 
 
 class CoinAPI(MarketDataIntfc):
+    def __init__(self, apikey):
+        self.apikey = apikey
+
     def get_request_data(self, url) -> list:
         headers = {
             'Accepts': 'application/json',
-            'X-CoinAPI-Key': 'DCF01C8D-C34A-4BD2-8BB3-09810C7BB090',
+            'X-CoinAPI-Key': self.apikey,
         }
         try:
             session = requests.Session()
@@ -318,7 +323,6 @@ class CoingeckoAPI(MarketDataIntfc):
 
 
 
-
 def write_df(flds, df2, tabname):
     server = 'localhost'  # to specify an alternate port
     database = 'master'
@@ -341,8 +345,7 @@ def write_df(flds, df2, tabname):
         print(str(ex))
 
 
-# Press the green button in the gutter to run the script.
-if __name__ == '__main__':
+
     # Things to capture
     # Read https://www.finextra.com/blogposting/20638/understanding-tokenomics-the-real-value-of-crypto
     # Allocation -- whether pre-minted ( eg before going live allocated to exclusive community
@@ -360,9 +363,13 @@ if __name__ == '__main__':
 
     # write_df(fields, crypto_table)
 
+
+
+
+def extract(tokens):
     coingecko = CoingeckoAPI()
-    coin = CoinAPI()
-    coinmarketcap = CoinMarketCapAPI()
+    coin = CoinAPI(tokens["X-CoinAPI-Key"])
+    coinmarketcap = CoinMarketCapAPI(tokens["X-CMC_PRO_API_KEY"])
 
     # Exchange details , the coingecko ids need to be converted to coin format
     exchange_info = coingecko.get_exchange_data()
@@ -411,6 +418,5 @@ if __name__ == '__main__':
     write_df(flds, symbols_df, "dbo.crypto_curr")
 
     print("ALL DONE with save")
-
 
 # See PyCharm help at https://www.jetbrains.com/help/pycharm/
