@@ -59,7 +59,7 @@ class MarketDataIntfc(ABC):
 
 
 class CoinMarketCapAPI(MarketDataIntfc):
-    def __init__( self, apikey):
+    def __init__(self, apikey):
         self.apikey = apikey
 
     def get_request_data(self, url) -> list:
@@ -227,8 +227,7 @@ class CoingeckoAPI(MarketDataIntfc):
     def get_symbol_data(self) -> pd.DataFrame:
         page_no = 1
 
-        crypto_list_with_dups = []
-        symbol_vs_vol = {}
+        crypto_map = OrderedDict()
         while page_no < 100:
             print("Page Number =" + str(page_no))
             url = \
@@ -237,50 +236,34 @@ class CoingeckoAPI(MarketDataIntfc):
             crypto_list_page = self.get_request_data(url)
             if crypto_list_page:
                 for crypto in crypto_list_page:
-                    if crypto.get('symbol', 'NO_VALUE') == 'NO_VALUE':
-                        continue
-                    if not crypto['symbol']:
+                    if not crypto.get('symbol', None):
                         continue
                     symbol = crypto['symbol']
-                    volume = crypto.get('total_volume', 0)
-                    volume = 0 if volume is None else volume
-                    if not crypto['symbol'] in symbol_vs_vol:
-                        symbol_vs_vol[crypto['symbol']] = volume
-                    elif symbol_vs_vol[crypto['symbol']] < volume:
-                        symbol_vs_vol[crypto['symbol']] = volume
-                crypto_list_with_dups.extend(crypto_list_page)
+                    if not crypto.get('total_volume', 0):
+                        continue
+                    if not crypto.get('market_cap', 0):
+                        continue
+                    volume = crypto.get('total_volume',0)
+                    if symbol not in crypto_map or volume > crypto_map[symbol]['total_volume']:
+                        crypto_map[symbol] = crypto
                 page_no = page_no + 1
             else:
                 break
         d = OrderedDict()
-        crypto_list = []
-        inserted_symbol = set()
-        for crypto in crypto_list_with_dups:
-            if crypto.get('symbol', 'NO_VALUE') == 'NO_VALUE':
-                continue
-            if not crypto['symbol']:
-                continue
-            if crypto['symbol'] in inserted_symbol: continue
-            volume = crypto.get('total_volume', 0)
-            volume = 0 if volume is None else volume
-            if not volume: continue
-            if volume >= symbol_vs_vol[crypto['symbol']]:
-                crypto_list.append(crypto)
-                inserted_symbol.add(crypto['symbol'])
         try:
-            d['symbol_data_source'] = ['COINGECKOAPI'] * len(crypto_list)
+            d['symbol_data_source'] = ['COINGECKOAPI'] * len(crypto_map)
             d['coin_gecko_id'] \
-                = [crypto_row['id'] for crypto_row in crypto_list]
-            d['name'] = [crypto_row.get('name', '') for crypto_row in crypto_list]
-            d['coingecko_mktcap_rank'] = [crypto_row.get('market_cap_rank', 0) for crypto_row in crypto_list]
-            d['symbol'] = [crypto_row['symbol'].upper() for crypto_row in crypto_list]
-            d['max_supply'] = [crypto_row.get('max_supply', 0) for crypto_row in crypto_list]
-            d['circulating_supply'] = [crypto_row.get('circulating_supply', 0) for crypto_row in crypto_list]
-            d['total_supply'] = [crypto_row.get('total_supply', 0) for crypto_row in crypto_list]
-            d['price'] = [crypto_row.get('current_price', 0) for crypto_row in crypto_list]
-            d['volume_24h'] = [crypto_row.get('total_volume', 0) for crypto_row in crypto_list]  # WHAT IS THIS ?
-            d['market_cap'] = [crypto_row.get('market_cap', 0) for crypto_row in crypto_list]
-            d['fully_diluted_market_cap'] = [crypto_row.get('fully_diluted_valuation', 0) for crypto_row in crypto_list]
+                = [crypto_row['id'] for crypto_row in crypto_map.values()]
+            d['name'] = [crypto_row.get('name', '') for crypto_row in crypto_map.values()]
+            d['coingecko_mktcap_rank'] = [crypto_row.get('market_cap_rank', 0) for crypto_row in crypto_map.values()]
+            d['symbol'] = [crypto_row['symbol'].upper() for crypto_row in crypto_map.values()]
+            d['max_supply'] = [crypto_row.get('max_supply', 0) for crypto_row in crypto_map.values()]
+            d['circulating_supply'] = [crypto_row.get('circulating_supply', 0) for crypto_row in crypto_map.values()]
+            d['total_supply'] = [crypto_row.get('total_supply', 0) for crypto_row in crypto_map.values()]
+            d['price'] = [crypto_row.get('current_price', 0) for crypto_row in crypto_map.values()]
+            d['volume_24h'] = [crypto_row.get('total_volume', 0) for crypto_row in crypto_map.values()]  # WHAT IS THIS ?
+            d['market_cap'] = [crypto_row.get('market_cap', 0) for crypto_row in crypto_map.values()]
+            d['fully_diluted_market_cap'] = [crypto_row.get('fully_diluted_valuation', 0) for crypto_row in crypto_map.values()]
             df = pd.DataFrame(d)
             # df = df.set_index('symbol')
         except Exception as exc:
@@ -309,7 +292,9 @@ class CoingeckoAPI(MarketDataIntfc):
         d = OrderedDict()
         try:
             d['exchange_data_source'] = ['COINGECKOAPI'] * len(exchange_list)
-            d['id'] = [exchange_mapping.get( self.convert_to_coin_format(crypto_row.get('id', '')) , crypto_row.get('id', ''))for crypto_row in exchange_list]
+            d['id'] = [
+                exchange_mapping.get(self.convert_to_coin_format(crypto_row.get('id', '')), crypto_row.get('id', ''))
+                for crypto_row in exchange_list]
             d['exchange_name'] = [crypto_row.get('name', '') for crypto_row in exchange_list]
             d['trust_score'] = [crypto_row.get('trust_score', 0) for crypto_row in exchange_list]
             d['trust_score_rank'] = [crypto_row['trust_score_rank'] for crypto_row in exchange_list]
@@ -318,9 +303,9 @@ class CoingeckoAPI(MarketDataIntfc):
             df = pd.DataFrame(d)
         except Exception as exc:
             print(str(exc))
+
             return pd.DataFrame()
         return df
-
 
 
 def write_df(flds, df2, tabname):
@@ -344,8 +329,6 @@ def write_df(flds, df2, tabname):
     except Exception as ex:
         print(str(ex))
 
-
-
     # Things to capture
     # Read https://www.finextra.com/blogposting/20638/understanding-tokenomics-the-real-value-of-crypto
     # Allocation -- whether pre-minted ( eg before going live allocated to exclusive community
@@ -362,8 +345,6 @@ def write_df(flds, df2, tabname):
     # make sure market cap ,volume are in USD from gecko
 
     # write_df(fields, crypto_table)
-
-
 
 
 def extract(tokens):
