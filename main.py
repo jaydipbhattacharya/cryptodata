@@ -4,8 +4,8 @@ import crypto_extract as c
 
 if __name__ == "__main__":
     # Below file need to have tokens , no space, no funny characters pls.
-    # X-CMC_PRO_API_KEY=af3d24ae-b0b8-46b6-a557-e2f7a159b412
-    # X-CoinAPI-Key=DCF01C8D-C34A-4BD2-8BB3-09810C7BB090
+    # X-CMC_PRO_API_KEY=<your token from coin market cap api>
+    # X-CoinAPI-Key=<your token from coin api>
 
     filename = "C:\\Users\\" + "jaydi"  + "\\Documents\\newtokens.txt"
     tokens = {}
