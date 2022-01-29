@@ -13,4 +13,4 @@ if __name__ == "__main__":
         for line in file:
             x = line.strip().strip('"').split("=")
             tokens[x[0]] = x[1]
-    c.extract(tokens)
+    c.extract(tokens, False)

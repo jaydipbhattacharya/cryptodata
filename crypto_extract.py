@@ -94,52 +94,47 @@ class CoinMarketCapAPI(MarketDataIntfc):
             return pd.DataFrame()
 
         crypto_list_with_dups = crypto_list_with_dups['data']
-        symbol_vs_vol = {}
+
+        crypto_map = OrderedDict()
         for crypto in crypto_list_with_dups:
             if not crypto['symbol']: continue
-            volume_24h = crypto['quote'].get('USD', {'volume_24h': 0})['volume_24h']
-            if not volume_24h: continue
-            if not crypto['symbol'] in symbol_vs_vol or \
-                    symbol_vs_vol[crypto['symbol']] < volume_24h:
-                symbol_vs_vol[crypto['symbol']] = volume_24h
+            symbol = crypto['symbol']
 
-        inserted_symbol = set()
-        crypto_list = []
-        for crypto in crypto_list_with_dups:
-            if not crypto.get('symbol', None): continue
             volume_24h = crypto['quote'].get('USD', {'volume_24h': 0})['volume_24h']
             if not volume_24h: continue
-            if crypto['symbol'] in inserted_symbol: continue
-            if volume_24h >= symbol_vs_vol[crypto['symbol']]:
-                crypto_list.append(crypto)
-                inserted_symbol.add(crypto['symbol'])
+            crypto['volume_24h'] = volume_24h
+
+            market_cap = crypto['quote'].get('USD', {'market_cap': 0})['market_cap']
+            # if not market_cap : continue
+            crypto['market_cap'] = market_cap
+
+            if crypto['symbol'] not in crypto_map or volume_24h > crypto_map[symbol]['volume_24h']:
+                crypto_map[symbol] = crypto
 
         try:
             d = OrderedDict()
-            d['symbol_data_source'] = ['COINMARKETCAPAPI'] * len(crypto_list)
+            d['symbol_data_source'] = ['COINMARKETCAPAPI'] * len(crypto_map.values())
             d['coin_mktcap_id'] \
-                = [crypto_row['id'] for crypto_row in crypto_list]
-            d['name'] = [crypto_row['name'] for crypto_row in crypto_list]
-            d['symbol'] = [crypto_row['symbol'].upper() for crypto_row in crypto_list]
-            d['adoption'] = [len(crypto_row.get('tags', [])) for crypto_row in crypto_list]
-            d['max_supply'] = [crypto_row['max_supply'] for crypto_row in crypto_list]
-            d['circulating_supply'] = [crypto_row['circulating_supply'] for crypto_row in crypto_list]
-            d['total_supply'] = [crypto_row['total_supply'] for crypto_row in crypto_list]
-            d['cmc_rank'] = [crypto_row['cmc_rank'] for crypto_row in crypto_list]
-            d['price'] = [crypto_row['quote'].get('USD', {'price': 0})['price'] for crypto_row in crypto_list]
-            d['volume_24h'] = [crypto_row['quote'].get('USD', {'volume_24h': 0})['volume_24h'] for
-                               crypto_row in crypto_list]
+                = [crypto_row['id'] for crypto_row in crypto_map.values()]
+            d['name'] = [crypto_row['name'] for crypto_row in crypto_map.values()]
+            d['symbol'] = [crypto_row['symbol'].upper() for crypto_row in crypto_map.values()]
+            d['adoption'] = [len(crypto_row.get('tags', [])) for crypto_row in crypto_map.values()]
+            d['max_supply'] = [crypto_row['max_supply'] for crypto_row in crypto_map.values()]
+            d['circulating_supply'] = [crypto_row['circulating_supply'] for crypto_row in crypto_map.values()]
+            d['total_supply'] = [crypto_row['total_supply'] for crypto_row in crypto_map.values()]
+            d['cmc_rank'] = [crypto_row['cmc_rank'] for crypto_row in crypto_map.values()]
+            d['price'] = [crypto_row['quote'].get('USD', {'price': 0})['price'] for crypto_row in crypto_map.values()]
+            d['volume_24h'] = [crypto_row['volume_24h'] for crypto_row in crypto_map.values()]
             d['volume_change_24h'] = [
                 0.01 * crypto_row['quote'].get('USD', {'volume_change_24h': 0})['volume_change_24h']
-                for crypto_row in crypto_list]
-            d['market_cap'] = [crypto_row['quote'].get('USD', {'market_cap': 0})['market_cap']
-                               for crypto_row in crypto_list]
+                for crypto_row in crypto_map.values()]
+            d['market_cap'] = [crypto_row['market_cap'] for crypto_row in crypto_map.values()]
             d['market_cap_dominance'] = \
                 [0.01 * crypto_row['quote'].get('USD', {'market_cap_dominance': 0})['market_cap_dominance']
-                 for crypto_row in crypto_list]
+                 for crypto_row in crypto_map.values()]
             d['fully_diluted_market_cap'] = \
                 [crypto_row['quote'].get('USD', {'fully_diluted_market_cap': 0})['fully_diluted_market_cap']
-                 for crypto_row in crypto_list]
+                 for crypto_row in crypto_map.values()]
             df = pd.DataFrame(d)
             # df=df.set_index(['symbol'])
         except Exception as exc:
@@ -243,7 +238,7 @@ class CoingeckoAPI(MarketDataIntfc):
                         continue
                     if not crypto.get('market_cap', 0):
                         continue
-                    volume = crypto.get('total_volume',0)
+                    volume = crypto.get('total_volume', 0)
                     if symbol not in crypto_map or volume > crypto_map[symbol]['total_volume']:
                         crypto_map[symbol] = crypto
                 page_no = page_no + 1
@@ -261,9 +256,11 @@ class CoingeckoAPI(MarketDataIntfc):
             d['circulating_supply'] = [crypto_row.get('circulating_supply', 0) for crypto_row in crypto_map.values()]
             d['total_supply'] = [crypto_row.get('total_supply', 0) for crypto_row in crypto_map.values()]
             d['price'] = [crypto_row.get('current_price', 0) for crypto_row in crypto_map.values()]
-            d['volume_24h'] = [crypto_row.get('total_volume', 0) for crypto_row in crypto_map.values()]  # WHAT IS THIS ?
+            d['volume_24h'] = [crypto_row.get('total_volume', 0) for crypto_row in
+                               crypto_map.values()]  # WHAT IS THIS ?
             d['market_cap'] = [crypto_row.get('market_cap', 0) for crypto_row in crypto_map.values()]
-            d['fully_diluted_market_cap'] = [crypto_row.get('fully_diluted_valuation', 0) for crypto_row in crypto_map.values()]
+            d['fully_diluted_market_cap'] = [crypto_row.get('fully_diluted_valuation', 0) for crypto_row in
+                                             crypto_map.values()]
             df = pd.DataFrame(d)
             # df = df.set_index('symbol')
         except Exception as exc:
@@ -347,31 +344,22 @@ def write_df(flds, df2, tabname):
     # write_df(fields, crypto_table)
 
 
-def extract(tokens):
+def extract(tokens, save):
     coingecko = CoingeckoAPI()
     coin = CoinAPI(tokens["X-CoinAPI-Key"])
     coinmarketcap = CoinMarketCapAPI(tokens["X-CMC_PRO_API_KEY"])
 
     # Exchange details , the coingecko ids need to be converted to coin format
     exchange_info = coingecko.get_exchange_data()
-    write_df(['exchange_data_source', 'id', 'trust_score', 'trust_score_rank', 'trade_volume_24h_btc_normalized'],
-             exchange_info, "dbo.crypto_exchange")
+    if save:
+        write_df(['exchange_data_source', 'id', 'trust_score', 'trust_score_rank', 'trade_volume_24h_btc_normalized'],
+                 exchange_info, "dbo.crypto_exchange")
 
     # Core symbol data
     symbols_df_cgko = coingecko.get_symbol_data().rename(columns={'coin_gecko_id': 'symbol_data_source_id'})
 
     # symbol  vs exchange mapping
     symbols_df_coin = coin.get_symbol_data()
-
-    # some auxiliary data
-    symbols_df_cmc = coinmarketcap.get_symbol_data().filter([
-        'symbol',
-        'symbol_data_source',
-        'adoption',
-        'coin_mktcap_id',
-        'cmc_rank',
-        'market_cap_dominance',
-        'volume_change_24h']).rename(columns={'symbol_data_source': 'additional_data_source'})
 
     # join symbol data from coingecko with symbol data from coin api to get exchange_id from coin api
     symbols_df = pd.merge(left=symbols_df_cgko, right=symbols_df_coin, how='left', left_on='symbol', right_on='symbol')
@@ -392,11 +380,21 @@ def extract(tokens):
         'market_cap_dominance',
         'adoption']
 
+    # some auxiliary data
+    symbols_df_cmc = coinmarketcap.get_symbol_data().filter([
+        'symbol',
+        'symbol_data_source',
+        'adoption',
+        'coin_mktcap_id',
+        'cmc_rank',
+        'market_cap_dominance',
+        'volume_change_24h']).rename(columns={'symbol_data_source': 'additional_data_source'})
+
     # join with coin market cap data to get some auxiliary info
     symbols_df = pd.merge(left=symbols_df, right=symbols_df_cmc, how='left', left_on='symbol', right_on='symbol')[flds]
 
     # symbols_df.to_csv("C:\\Users\\jaydi\\Documents\\testdata\\symbols_and_exchange.csv", index=False)
-    write_df(flds, symbols_df, "dbo.crypto_curr")
+    if save: write_df(flds, symbols_df, "dbo.crypto_curr")
 
     print("ALL DONE with save")
 
